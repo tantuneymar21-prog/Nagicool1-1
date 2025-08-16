@@ -1,0 +1,202 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Take The Coin Super Interactive</title>
+<style>
+body {
+  font-family: Arial, sans-serif;
+  background: #111827;
+  color: white;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  margin: 0;
+  height: 100vh;
+}
+h1 { margin-bottom: 10px; }
+#status { margin-bottom: 10px; }
+.coins {
+  display: flex;
+  flex-wrap: wrap;
+  max-width: 400px;
+  gap: 5px;
+  margin-bottom: 15px;
+}
+.coin {
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  background: gold;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  font-size: 20px;
+  font-weight: bold;
+  color: #333;
+  transition: transform 0.8s ease, opacity 0.8s ease;
+  cursor: pointer;
+}
+.coin.taken {
+  transform: translateY(-50px) scale(0);
+  opacity: 0;
+}
+button {
+  padding: 10px 20px;
+  background: #2563eb;
+  color: white;
+  border: none;
+  border-radius: 8px;
+  cursor: pointer;
+  margin: 5px;
+}
+button:hover { background: #1d4ed8; transform: scale(1.05); }
+#leaderboard {
+  margin-top: 15px;
+}
+</style>
+<!-- Firebase SDK -->
+<script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-database-compat.js"></script>
+</head>
+<body>
+
+<h1>Take The Coin Super Interactive</h1>
+<div id="status">Menghubungkan...</div>
+<div class="coins" id="coinsContainer"></div>
+<div>
+  <button onclick="takeCoins(1)">Ambil 1</button>
+  <button onclick="takeCoins(2)">Ambil 2</button>
+  <button onclick="takeCoins(3)">Ambil 3</button>
+</div>
+<div id="leaderboard"><h3>Leaderboard</h3><ul id="boardList"></ul></div>
+
+<audio id="coinSound" src="https://www.soundjay.com/misc/sounds/coin-drop-1.mp3"></audio>
+
+<script>
+  const firebaseConfig = {
+    apiKey: "YOUR_API_KEY",
+    authDomain: "YOUR_PROJECT_ID.firebaseapp.com",
+    databaseURL: "https://YOUR_PROJECT_ID.firebaseio.com",
+    projectId: "YOUR_PROJECT_ID",
+    storageBucket: "YOUR_PROJECT_ID.appspot.com",
+    messagingSenderId: "YOUR_SENDER_ID",
+    appId: "YOUR_APP_ID"
+  };
+  firebase.initializeApp(firebaseConfig);
+  const db = firebase.database();
+
+  const gameId = prompt("Masukkan nama room game:");
+  let player = prompt("Masukkan nama pemain:");
+  let players = [];
+  let currentPlayer = "";
+  let totalCoins = 20;
+
+  const coinSound = document.getElementById('coinSound');
+
+  function renderCoins() {
+    const container = document.getElementById('coinsContainer');
+    container.innerHTML = '';
+    for (let i = 0; i < totalCoins; i++) {
+      const coin = document.createElement('div');
+      coin.className = 'coin';
+      coin.textContent = '💰';
+      container.appendChild(coin);
+    }
+  }
+
+  function takeCoins(number) {
+    if (currentPlayer !== player) return alert("Bukan giliranmu!");
+    number = Math.min(number, totalCoins);
+    const coinsElems = document.querySelectorAll('.coin');
+    for (let i = 0; i < number; i++) {
+      coinsElems[i].classList.add('taken');
+    }
+    coinSound.play();
+    setTimeout(() => {
+      db.ref(`games/${gameId}`).transaction(game => {
+        if(game){
+          game.totalCoins -= number;
+          game.turn = getNextPlayer();
+          game.scores = game.scores || {};
+          game.scores[player] = (game.scores[player] || 0) + number;
+        }
+        return game;
+      });
+    }, 800);
+  }
+
+  function getNextPlayer() {
+    const idx = players.indexOf(currentPlayer);
+    return players[(idx + 1) % players.length];
+  }
+
+  function updateLeaderboard(scores){
+    const board = document.getElementById('boardList');
+    board.innerHTML = '';
+    if(scores){
+      Object.keys(scores).sort((a,b)=>scores[b]-scores[a]).forEach(p=>{
+        const li = document.createElement('li');
+        li.textContent = `${p}: ${scores[p]} koin`;
+        board.appendChild(li);
+      });
+    }
+  }
+
+  // Join room
+  db.ref(`games/${gameId}/players`).once('value', snapshot => {
+    if(snapshot.exists()) {
+      players = snapshot.val();
+      if(!players.includes(player)) players.push(player);
+    } else {
+      players = [player];
+    }
+    db.ref(`games/${gameId}/players`).set(players);
+  });
+
+  // Listen game state
+  db.ref(`games/${gameId}`).on('value', snapshot => {
+    const data = snapshot.val();
+    if(data){
+      totalCoins = data.totalCoins;
+      currentPlayer = data.turn || players[0];
+      renderCoins();
+      updateLeaderboard(data.scores);
+      if(totalCoins <= 0){
+        document.getElementById('status').textContent = `${currentPlayer} kalah! Game selesai.`;
+        setTimeout(resetGame, 2000);
+      } else {
+        document.getElementById('status').textContent = `Giliran: ${currentPlayer}`;
+      }
+    }
+  });
+
+  // Initialize game if not exists
+  db.ref(`games/${gameId}`).once('value', snapshot=>{
+    if(!snapshot.exists()){
+      db.ref(`games/${gameId}`).set({
+        totalCoins: 20,
+        turn: player,
+        players: [player],
+        scores: {}
+      });
+    }
+  });
+
+  function resetGame(){
+    db.ref(`games/${gameId}`).transaction(game=>{
+      if(game){
+        game.totalCoins = 20;
+        game.turn = players[0];
+        game.scores = {};
+      }
+      return game;
+    });
+  }
+
+  renderCoins();
+</script>
+</body>
+</html>
