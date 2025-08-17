@@ -1,0 +1,126 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Ultra HD 3D Game</title>
+<style>
+  body { margin: 0; overflow: hidden; }
+  canvas { display: block; }
+</style>
+</head>
+<body>
+
+<script src="https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.160.0/examples/js/controls/OrbitControls.js"></script>
+
+<script>
+// === Scene & Camera ===
+const scene = new THREE.Scene();
+scene.background = new THREE.Color(0x87CEEB); // Sky blue
+const camera = new THREE.PerspectiveCamera(75, window.innerWidth/window.innerHeight, 0.1, 1000);
+camera.position.set(0, 5, 10);
+
+// === Renderer ===
+const renderer = new THREE.WebGLRenderer({antialias:true});
+renderer.setSize(window.innerWidth, window.innerHeight);
+document.body.appendChild(renderer.domElement);
+
+// === Controls (for testing) ===
+const controls = new THREE.OrbitControls(camera, renderer.domElement);
+controls.enableDamping = true;
+
+// === Light ===
+const directionalLight = new THREE.DirectionalLight(0xffffff, 1);
+directionalLight.position.set(5, 10, 7);
+scene.add(directionalLight);
+
+// === Ground ===
+const groundTexture = new THREE.TextureLoader().load('https://threejs.org/examples/textures/terrain/grasslight-big.jpg');
+groundTexture.wrapS = groundTexture.wrapT = THREE.RepeatWrapping;
+groundTexture.repeat.set(10, 10);
+
+const groundMat = new THREE.MeshStandardMaterial({ map: groundTexture });
+const ground = new THREE.Mesh(new THREE.PlaneGeometry(100, 100), groundMat);
+ground.rotation.x = -Math.PI/2;
+scene.add(ground);
+
+// === Water Shader ===
+const waterUniforms = {
+  time: { value: 0.0 }
+};
+
+const waterMaterial = new THREE.ShaderMaterial({
+  uniforms: waterUniforms,
+  vertexShader: `
+    varying vec2 vUv;
+    varying float vWave;
+    uniform float time;
+    void main() {
+      vUv = uv;
+      vec3 pos = position;
+      pos.z += sin(pos.x * 2.0 + time) * 0.2;
+      pos.z += cos(pos.y * 2.0 + time) * 0.2;
+      vWave = pos.z;
+      gl_Position = projectionMatrix * modelViewMatrix * vec4(pos,1.0);
+    }
+  `,
+  fragmentShader: `
+    varying vec2 vUv;
+    varying float vWave;
+    void main() {
+      vec3 color = vec3(0.0, 0.3, 0.6) + vWave*0.1;
+      gl_FragColor = vec4(color, 1.0);
+    }
+  `
+});
+
+const water = new THREE.Mesh(new THREE.PlaneGeometry(50,50,100,100), waterMaterial);
+water.rotation.x = -Math.PI/2;
+water.position.y = 0.1;
+scene.add(water);
+
+// === Player ===
+const playerMat = new THREE.MeshStandardMaterial({ color: 0xff0000 });
+const player = new THREE.Mesh(new THREE.BoxGeometry(1,2,1), playerMat);
+player.position.y = 1;
+scene.add(player);
+
+// === Player Controls ===
+const keys = {};
+document.addEventListener('keydown', e => keys[e.code] = true);
+document.addEventListener('keyup', e => keys[e.code] = false);
+
+function movePlayer(delta){
+  const speed = 5 * delta;
+  if(keys['KeyW']) player.position.z -= speed;
+  if(keys['KeyS']) player.position.z += speed;
+  if(keys['KeyA']) player.position.x -= speed;
+  if(keys['KeyD']) player.position.x += speed;
+  camera.position.x = player.position.x + 5;
+  camera.position.z = player.position.z + 10;
+  camera.lookAt(player.position);
+}
+
+// === Animate ===
+const clock = new THREE.Clock();
+function animate() {
+  requestAnimationFrame(animate);
+  const delta = clock.getDelta();
+  waterUniforms.time.value += delta;
+  movePlayer(delta);
+  controls.update();
+  renderer.render(scene, camera);
+}
+animate();
+
+// === Resize ===
+window.addEventListener('resize', ()=>{
+  camera.aspect = window.innerWidth/window.innerHeight;
+  camera.updateProjectionMatrix();
+  renderer.setSize(window.innerWidth, window.innerHeight);
+});
+</script>
+
+</body>
+</html>
