@@ -1,0 +1,462 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Duskwood Manor: RPG Horor</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Firebase SDKs -->
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+        import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+        import { getFirestore, doc, getDoc, setDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+        import { setLogLevel } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+        
+        // Initialize Firebase when the script loads
+        window.initFirebase = async () => {
+            if (typeof __app_id === 'undefined') {
+                console.error("Firebase environment variables not found.");
+                return;
+            }
+
+            const appId = __app_id;
+            const firebaseConfig = JSON.parse(__firebase_config);
+            const initialAuthToken = typeof __initial_auth_token !== 'undefined' ? __initial_auth_token : null;
+
+            // Set up Firebase
+            const app = initializeApp(firebaseConfig);
+            window.db = getFirestore(app);
+            window.auth = getAuth(app);
+            
+            // Set Firestore log level for debugging
+            setLogLevel('Debug');
+
+            return new Promise(resolve => {
+                onAuthStateChanged(window.auth, async (user) => {
+                    if (user) {
+                        window.userId = user.uid;
+                        document.getElementById('user-id-display').textContent = 'ID Anda: ' + window.userId;
+                        resolve();
+                    } else {
+                        try {
+                            if (initialAuthToken) {
+                                await signInWithCustomToken(window.auth, initialAuthToken);
+                            } else {
+                                await signInAnonymously(window.auth);
+                            }
+                        } catch (error) {
+                            console.error("Error during authentication:", error);
+                            // Fallback to anonymous ID if sign-in fails
+                            window.userId = crypto.randomUUID();
+                            document.getElementById('user-id-display').textContent = 'ID Sementara: ' + window.userId;
+                            resolve();
+                        }
+                    }
+                });
+            });
+        };
+
+        window.getGameDocRef = () => {
+            const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
+            const userId = window.userId;
+            const GAME_COLLECTION = "game_saves";
+            const GAME_DOC_ID = "duskwood_manor_save";
+            
+            // Path: /artifacts/{appId}/users/{userId}/game_saves/duskwood_manor_save
+            return doc(window.db, 'artifacts', appId, 'users', userId, GAME_COLLECTION, GAME_DOC_ID);
+        };
+
+        window.saveGame = async () => {
+            if (!window.db || !window.userId) {
+                console.error("Database or User ID not initialized.");
+                return;
+            }
+            try {
+                const docRef = window.getGameDocRef();
+                const dataToSave = {
+                    ...window.gameState,
+                    timestamp: new Date().toISOString()
+                };
+                await setDoc(docRef, dataToSave);
+                window.displayMessage("Game Berhasil Disimpan!", "text-green-400");
+            } catch (error) {
+                console.error("Error saving game:", error);
+                window.displayMessage("Gagal Menyimpan Game. Lihat konsol untuk detail.", "text-red-400");
+            }
+        };
+
+        window.loadGame = async () => {
+            if (!window.db || !window.userId) {
+                console.error("Database or User ID not initialized.");
+                return null;
+            }
+            try {
+                const docRef = window.getGameDocRef();
+                const docSnap = await getDoc(docRef);
+
+                if (docSnap.exists()) {
+                    const loadedState = docSnap.data();
+                    window.gameState = loadedState;
+                    window.updateScreen(loadedState.currentScene);
+                    window.displayMessage("Game Berhasil Dimuat!", "text-green-400");
+                    return loadedState;
+                } else {
+                    window.displayMessage("Tidak Ada Data Simpanan Ditemukan. Memulai Game Baru.", "text-yellow-400");
+                    return null;
+                }
+            } catch (error) {
+                console.error("Error loading game:", error);
+                window.displayMessage("Gagal Memuat Game. Memulai Game Baru.", "text-red-400");
+                return null;
+            }
+        };
+    </script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Creepster&family=Inter:wght@400;700&display=swap');
+        
+        /* Custom font for spooky feel */
+        .spooky-font {
+            font-family: 'Creepster', cursive;
+        }
+
+        /* Inter font for readability */
+        body {
+            font-family: 'Inter', sans-serif;
+        }
+        
+        .rpg-container {
+            min-height: 80vh;
+        }
+        
+        /* Custom scrollbar for dark theme */
+        .custom-scrollbar::-webkit-scrollbar {
+            width: 8px;
+        }
+        .custom-scrollbar::-webkit-scrollbar-track {
+            background: #1f2937; /* Dark gray background */
+        }
+        .custom-scrollbar::-webkit-scrollbar-thumb {
+            background: #374151; /* Medium gray scrollbar handle */
+            border-radius: 4px;
+        }
+        .custom-scrollbar::-webkit-scrollbar-thumb:hover {
+            background: #4b5563; /* Lighter gray on hover */
+        }
+    </style>
+</head>
+<body class="bg-gray-900 text-gray-100 p-4 md:p-8">
+    <div class="max-w-4xl mx-auto">
+        <header class="text-center mb-6">
+            <h1 class="spooky-font text-5xl md:text-7xl text-red-700 leading-none tracking-widest animate-pulse">
+                DUSKWOOD MANOR
+            </h1>
+            <p class="text-gray-400 mt-2 text-lg">RPG Horor - Tentukan Nasibmu</p>
+        </header>
+
+        <main class="bg-gray-800 p-6 rounded-xl shadow-2xl rpg-container flex flex-col">
+            
+            <!-- Status & User ID -->
+            <div id="status-display" class="bg-gray-700 p-4 rounded-lg mb-4 text-sm md:flex justify-between items-center space-y-2 md:space-y-0">
+                <p id="hp-status" class="text-red-400 font-bold">HP: 100</p>
+                <p id="inventory-status" class="text-yellow-400 font-bold">INVENTARIS: Kosong</p>
+                <p id="user-id-display" class="text-gray-400 text-xs truncate">ID Anda: Menghubungkan...</p>
+            </div>
+
+            <!-- Narrative Display -->
+            <div id="narrative-display" class="flex-grow bg-gray-900 p-5 rounded-lg mb-6 overflow-y-auto custom-scrollbar text-lg leading-relaxed border-t-4 border-red-700">
+                <p class="text-gray-300">Memuat game...</p>
+            </div>
+            
+            <!-- Message Box -->
+            <div id="message-box" class="p-3 mb-4 rounded-lg text-center hidden font-semibold"></div>
+
+            <!-- Action Buttons -->
+            <div id="action-buttons" class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <!-- Buttons will be generated here -->
+            </div>
+            
+            <!-- Control Buttons -->
+            <div class="mt-6 flex justify-center space-x-4">
+                <button onclick="window.saveGame()" class="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded-lg transition duration-200 shadow-md">
+                    Simpan Game
+                </button>
+                <button onclick="window.loadGame().then(state => state ? null : window.startGame())" class="bg-green-600 hover:bg-green-700 text-white font-bold py-2 px-4 rounded-lg transition duration-200 shadow-md">
+                    Muat Game
+                </button>
+                <button onclick="window.startGame(true)" class="bg-red-600 hover:bg-red-700 text-white font-bold py-2 px-4 rounded-lg rounded-full transition duration-200 shadow-md">
+                    Game Baru
+                </button>
+            </div>
+
+        </main>
+        
+        <footer class="mt-4 text-center text-gray-500 text-xs">
+            © 2025 Duskwood Manor. All rights reserved. Game by Gemini.
+        </footer>
+    </div>
+
+    <script>
+        // --- GAME DATA ---
+        const gameData = {
+            'Foyer': {
+                description: "Anda berdiri di tengah **Foyer** yang luas, diselimuti kegelapan dan debu. Cahaya bulan yang samar menembus jendela tinggi, menerangi tangga megah yang membentang ke lantai atas. Udara terasa dingin dan berat. <br>Anda harus menemukan kunci untuk keluar atau sumber cahaya untuk menjelajahi lantai atas.",
+                choices: [
+                    { text: "Pergi ke **Ruang Makan**", nextScene: "DiningRoom" },
+                    { text: "Coba naik **Tangga** ke lantai dua (Gelap)", nextScene: "StairsUp" },
+                    { text: "Periksa saku Anda (Inventaris)", nextScene: "Inventory" }
+                ]
+            },
+            'DiningRoom': {
+                description: "Ruang Makan dipenuhi meja kayu panjang yang ditutupi kain putih kotor. Bau apek memenuhi hidung Anda. Di salah satu sudut, Anda melihat sesuatu berkilauan.",
+                choices: [
+                    { text: "Periksa sudut yang berkilauan", nextScene: "FindKey" },
+                    { text: "Kembali ke **Foyer**", nextScene: "Foyer" }
+                ]
+            },
+            'FindKey': {
+                description: "Anda menemukan **Kunci Berkarat** kecil di bawah tumpukan piring pecah. Saat mengambilnya, Anda mendengar bisikan samar di belakang Anda... tapi tidak ada siapa-siapa. Anda memasukkan kunci itu ke dalam saku.",
+                onEnter: (state) => {
+                    if (!state.inventory.includes("Kunci Berkarat")) {
+                        state.inventory.push("Kunci Berkarat");
+                        return "Foyer";
+                    }
+                    return "Foyer"; // Already found it
+                },
+                choices: [
+                    { text: "Kembali ke **Foyer**", nextScene: "Foyer" }
+                ]
+            },
+            'StairsUp': {
+                description: "Anda mulai menaiki tangga. Di tengah jalan, kegelapan menjadi total, dan Anda tersandung! Anda terluka sedikit.",
+                onEnter: (state) => {
+                    if (state.inventory.includes("Lilin")) {
+                        window.displayMessage("Lilin Anda menyala, menerangi jalan. Anda aman naik ke atas.", "text-yellow-400");
+                        return "Hallway2F";
+                    } else {
+                        state.hp = Math.max(0, state.hp - 10); // Lose 10 HP
+                        window.displayMessage("Terlalu gelap! Anda tersandung dan kehilangan 10 HP.", "text-red-400");
+                        return "Foyer"; // Forced retreat
+                    }
+                },
+                choices: [] // Choices are determined by onEnter logic
+            },
+            'Hallway2F': {
+                description: "Anda mencapai lantai dua. **Koridor** ini terasa lebih dingin, dan lukisan-lukisan tua di dinding seolah mengamati Anda. Di ujung koridor, ada dua pintu: kamar tidur dan kamar mandi.",
+                choices: [
+                    { text: "Masuk ke **Kamar Tidur Utama**", nextScene: "Bedroom" },
+                    { text: "Masuk ke **Kamar Mandi Kotor**", nextScene: "Bathroom" },
+                    { text: "Turun kembali ke **Foyer**", nextScene: "Foyer" }
+                ]
+            },
+            'Bedroom': {
+                description: "Kamar tidur utama terasa menyesakkan. Di atas meja rias, Anda melihat sebuah **Lilin** dan korek api. Tiba-tiba, mata lukisan di dinding terbuka!",
+                onEnter: (state) => {
+                    if (!state.inventory.includes("Lilin")) {
+                        state.inventory.push("Lilin");
+                        window.displayMessage("Anda mengambil Lilin dan Korek api. Sekarang Anda punya sumber cahaya!", "text-yellow-400");
+                    }
+                },
+                choices: [
+                    { text: "Lari ke **Koridor**", nextScene: "Hallway2F" },
+                    { text: "Coba buka **Jendela Terkunci**", nextScene: "LockedWindow" }
+                ]
+            },
+            'Bathroom': {
+                description: "Kamar mandi ini adalah mimpi buruk. Cermin retak, dan air hitam menetes dari keran. Anda melihat bayangan sekilas di cermin yang tidak bergerak seperti Anda. Anda merasa ketakutan (HP turun).",
+                onEnter: (state) => {
+                    state.hp = Math.max(0, state.hp - 15); // Lose 15 HP
+                    window.displayMessage("Anda gemetar ketakutan, kehilangan 15 HP.", "text-red-400");
+                },
+                choices: [
+                    { text: "Cepat-cepat kembali ke **Koridor**", nextScene: "Hallway2F" }
+                ]
+            },
+            'LockedWindow': {
+                description: "Jendela terkunci rapat, seolah disegel dari dalam. Namun, ada lubang kunci kecil.",
+                choices: [
+                    { text: "Gunakan **Kunci Berkarat**", nextScene: "EscapeCheck" },
+                    { text: "Kembali ke **Kamar Tidur Utama**", nextScene: "Bedroom" }
+                ]
+            },
+            'EscapeCheck': {
+                description: "", // Description filled by onEnter
+                onEnter: (state) => {
+                    if (state.inventory.includes("Kunci Berkarat")) {
+                        // Win Condition
+                        return "Win";
+                    } else {
+                        window.displayMessage("Anda tidak punya kunci yang cocok!", "text-red-400");
+                        return "Bedroom";
+                    }
+                },
+                choices: []
+            },
+            'Inventory': {
+                description: "Ini adalah inventaris Anda. Pilih 'Kembali' untuk melanjutkan.",
+                choices: [
+                    { text: "Kembali ke Permainan", nextScene: (state) => state.lastScene || "Foyer" }
+                ]
+            },
+            'Win': {
+                description: "**SELAMAT!** Kunci Berkarat berhasil membuka jendela. Anda melompat keluar dan berlari menjauh dari Duskwood Manor. Cahaya fajar menyambut Anda, dan Anda telah selamat dari malam horor ini. <br><br>**AKHIR YANG BAIK**",
+                choices: [
+                    { text: "Main Lagi", nextScene: "Foyer", onAction: (state) => window.startGame(true) }
+                ]
+            },
+            'GameOver': {
+                description: "Kesehatan Anda telah habis. Kegelapan akhirnya merengkuh Anda, dan Anda menjadi bagian dari Manor. <br><br>**GAME OVER**",
+                choices: [
+                    { text: "Mulai Ulang", nextScene: "Foyer", onAction: (state) => window.startGame(true) }
+                ]
+            }
+        };
+
+        // --- GAME STATE ---
+        let gameState = {
+            currentScene: 'Foyer',
+            hp: 100,
+            inventory: [],
+            lastScene: 'Foyer',
+        };
+
+        // Global variables for Firebase access
+        window.gameState = gameState;
+
+        // --- UI ELEMENTS ---
+        const narrativeDisplay = document.getElementById('narrative-display');
+        const actionButtons = document.getElementById('action-buttons');
+        const hpStatus = document.getElementById('hp-status');
+        const inventoryStatus = document.getElementById('inventory-status');
+        const messageBox = document.getElementById('message-box');
+
+        // --- GAME LOGIC FUNCTIONS ---
+
+        /** Updates the status display (HP and Inventory) */
+        function updateStatus() {
+            hpStatus.textContent = `HP: ${gameState.hp}`;
+            inventoryStatus.textContent = `INVENTARIS: ${gameState.inventory.length > 0 ? gameState.inventory.join(', ') : 'Kosong'}`;
+        }
+        
+        /**
+         * Shows a temporary message to the user.
+         * @param {string} message The message to display.
+         * @param {string} classes Tailwind classes for styling.
+         */
+        window.displayMessage = (message, classes) => {
+            messageBox.textContent = message;
+            messageBox.className = `p-3 mb-4 rounded-lg text-center font-semibold ${classes}`;
+            messageBox.style.display = 'block';
+            setTimeout(() => {
+                messageBox.style.display = 'none';
+            }, 3000);
+        };
+
+        /**
+         * Renders the current scene based on the game state.
+         * @param {string} sceneId The ID of the scene to load.
+         */
+        window.updateScreen = (sceneId) => {
+            const scene = gameData[sceneId];
+            if (!scene) {
+                console.error("Scene not found:", sceneId);
+                return;
+            }
+            
+            // Check for Game Over condition
+            if (gameState.hp <= 0 && sceneId !== 'Win') {
+                sceneId = 'GameOver';
+                scene = gameData[sceneId];
+            }
+
+            if (sceneId !== 'Inventory') {
+                 gameState.lastScene = sceneId; // Store previous non-inventory scene
+            }
+
+            // 1. Run onEnter logic if available
+            let nextOverrideScene = sceneId;
+            if (scene.onEnter) {
+                // onEnter can return a new scene ID to force a transition
+                const override = scene.onEnter(gameState);
+                if (typeof override === 'string') {
+                    nextOverrideScene = override;
+                    // Re-run with the new scene if it was overridden
+                    if (nextOverrideScene !== sceneId) {
+                        return window.updateScreen(nextOverrideScene);
+                    }
+                }
+            }
+
+            // Update status after potential HP/Inventory changes
+            updateStatus();
+
+            // 2. Render Narrative
+            narrativeDisplay.innerHTML = `<h2 class="text-3xl text-red-500 mb-4">${sceneId}</h2>` + scene.description;
+
+            // 3. Render Choices
+            actionButtons.innerHTML = '';
+            scene.choices.forEach(choice => {
+                const button = document.createElement('button');
+                button.className = 'bg-gray-700 hover:bg-red-800 text-gray-100 font-bold py-3 px-6 rounded-lg transition duration-300 shadow-lg border border-red-900 text-left';
+                button.textContent = choice.text;
+                button.onclick = () => window.handleAction(choice);
+                actionButtons.appendChild(button);
+            });
+            
+            gameState.currentScene = sceneId;
+        };
+
+        /**
+         * Handles the player's choice/action.
+         * @param {object} choice The choice object from gameData.
+         */
+        window.handleAction = (choice) => {
+            if (choice.onAction) {
+                choice.onAction(gameState);
+                // If onAction handles the scene transition, return.
+                if (!choice.nextScene) return;
+            }
+
+            let nextSceneId = choice.nextScene;
+
+            // Handle function-based nextScene (e.g., for Inventory return)
+            if (typeof nextSceneId === 'function') {
+                nextSceneId = nextSceneId(gameState);
+            }
+            
+            // Transition to the new scene
+            window.updateScreen(nextSceneId);
+        };
+        
+        /** Starts or resets the game state. */
+        window.startGame = (reset = false) => {
+            if (reset) {
+                gameState.currentScene = 'Foyer';
+                gameState.hp = 100;
+                gameState.inventory = [];
+                gameState.lastScene = 'Foyer';
+                window.displayMessage("Memulai Game Baru...", "text-yellow-400");
+            }
+            window.updateScreen(gameState.currentScene);
+        };
+        
+        // --- INITIALIZATION ---
+        window.onload = async () => {
+            if (typeof window.initFirebase === 'function') {
+                await window.initFirebase();
+                // After Firebase is ready, try to load game, otherwise start new game
+                const loaded = await window.loadGame();
+                if (!loaded) {
+                    window.startGame();
+                }
+            } else {
+                // Fallback if the module script fails to load
+                console.warn("Firebase initialization function not found. Starting game without saving/loading capabilities.");
+                window.userId = 'local-user';
+                document.getElementById('user-id-display').textContent = 'ID Sementara: ' + window.userId;
+                window.startGame();
+            }
+        };
+
+    </script>
+</body>
+</html>
