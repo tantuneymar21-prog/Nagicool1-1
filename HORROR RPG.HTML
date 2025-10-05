@@ -1,0 +1,118 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Horror RPG Game</title>
+  <style>
+    body {
+      background-color: #111;
+      color: #eee;
+      font-family: 'Courier New', Courier, monospace;
+      padding: 20px;
+    }
+    #game {
+      max-width: 600px;
+      margin: auto;
+      background: #222;
+      padding: 15px;
+      border-radius: 8px;
+      box-shadow: 0 0 15px #880000;
+    }
+    button {
+      background-color: #440000;
+      border: none;
+      color: #eee;
+      padding: 10px 20px;
+      margin: 5px;
+      cursor: pointer;
+      border-radius: 5px;
+      font-size: 16px;
+    }
+    button:hover {
+      background-color: #660000;
+    }
+  </style>
+</head>
+<body>
+  <div id="game">
+    <div id="story"></div>
+    <div id="choices"></div>
+  </div>
+
+  <script>
+    const story = document.getElementById('story');
+    const choices = document.getElementById('choices');
+
+    let position = 'start';
+    let isAlive = true;
+
+    function show(text) {
+      story.innerHTML = text;
+    }
+
+    function createChoice(text, action) {
+      const button = document.createElement('button');
+      button.textContent = text;
+      button.onclick = action;
+      choices.appendChild(button);
+    }
+
+    function clearChoices() {
+      choices.innerHTML = '';
+    }
+
+    function start() {
+      position = 'start';
+      isAlive = true;
+      show('Kamu berada di sebuah rumah gelap dan menyeramkan. Apa yang ingin kamu lakukan?');
+      clearChoices();
+      createChoice('Masuk ke koridor', () => {
+        position = 'corridor';
+        corridor();
+      });
+      createChoice('Keluar dari rumah', () => {
+        position = 'end';
+        endGame('Kamu meninggalkan rumah. Namun, kamu merasa ada sesuatu yang mengikutimu...');
+      });
+    }
+
+    function corridor() {
+      show('Kamu berada di koridor yang gelap. Pilihanmu:');
+      clearChoices();
+      createChoice('Masuk ke ruang bawah tanah', () => {
+        position = 'basement';
+        basement();
+      });
+      createChoice('Kembali ke depan pintu', () => {
+        position = 'start';
+        start();
+      });
+    }
+
+    function basement() {
+      show('Kamu turun ke ruang bawah tanah yang dingin dan suram. Apa yang ingin kamu lakukan?');
+      clearChoices();
+      createChoice('Cari petunjuk', () => {
+        isAlive = false;
+        endGame('Kamu menemukan kunci berkarat. Tiba-tiba muncul hantu dan menyerangmu! Kamu meninggal. Game over.');
+      });
+      createChoice('Lari keluar', () => {
+        position = 'corridor';
+        corridor();
+      });
+    }
+
+    function endGame(message) {
+      show(message);
+      clearChoices();
+      createChoice('Mainkan lagi', () => {
+        start();
+      });
+    }
+
+    // Mulai game saat halaman dimuat
+    start();
+  </script>
+</body>
+</html>
