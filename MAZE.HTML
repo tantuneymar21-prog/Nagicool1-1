@@ -1,0 +1,448 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Game Labirin Sederhana</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        /* Menggunakan font Inter */
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;700&display=swap');
+        
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #1f2937; /* Abu-abu gelap */
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            min-height: 100vh;
+            margin: 0;
+            padding: 20px;
+        }
+
+        .game-container {
+            background-color: #374151; /* Abu-abu lebih terang */
+            padding: 20px;
+            border-radius: 12px;
+            box-shadow: 0 10px 20px rgba(0, 0, 0, 0.4);
+            text-align: center;
+            max-width: 95vw;
+            width: fit-content;
+        }
+
+        h1 {
+            color: #f9fafb; /* Putih */
+            margin-bottom: 10px;
+            font-size: 1.5rem;
+            font-weight: 700;
+        }
+
+        #message-box {
+            color: #d1d5db; /* Abu-abu terang */
+            height: 30px;
+            margin-bottom: 15px;
+            font-size: 1rem;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        #maze-grid {
+            border: 4px solid #4b5563;
+            display: inline-grid;
+            background-color: #9ca3af; /* Abu-abu untuk dinding */
+            border-radius: 8px;
+            overflow: hidden;
+        }
+
+        .cell {
+            width: 30px;
+            height: 30px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            box-sizing: border-box;
+            background-color: #f9fafb; /* Lantai */
+            border: 1px solid #d1d5db;
+        }
+
+        .wall {
+            background-color: #4b5563; /* Dinding padat */
+            border: none;
+        }
+
+        .start {
+            background-color: #10b981; /* Hijau */
+            position: relative;
+        }
+
+        .end {
+            background-color: #ef4444; /* Merah */
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.5rem;
+            color: #f9fafb;
+            text-shadow: 1px 1px 2px rgba(0,0,0,0.5);
+        }
+        
+        .player {
+            width: 80%;
+            height: 80%;
+            background-color: #3b82f6; /* Biru */
+            border-radius: 50%;
+            transition: transform 0.1s ease-out;
+            box-shadow: 0 0 5px rgba(0, 0, 0, 0.5);
+        }
+
+        .button-group {
+            margin-top: 20px;
+            display: flex;
+            gap: 10px;
+            justify-content: center;
+        }
+
+        .action-button {
+            padding: 10px 20px;
+            background-color: #f59e0b;
+            color: #1f2937;
+            font-weight: 700;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            transition: background-color 0.2s, transform 0.1s;
+            box-shadow: 0 4px #b45309;
+        }
+
+        .action-button:hover {
+            background-color: #fbbf24;
+        }
+
+        .action-button:active {
+            background-color: #d97706;
+            transform: translateY(2px);
+            box-shadow: 0 2px #b45309;
+        }
+
+        .mobile-controls {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            margin-top: 20px;
+        }
+
+        .dpad-row {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 10px;
+        }
+
+        .dpad-btn {
+            width: 60px;
+            height: 60px;
+            background-color: #1c64f2; /* Biru terang */
+            color: white;
+            font-size: 1.5rem;
+            font-weight: 700;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            transition: background-color 0.2s, transform 0.1s;
+            box-shadow: 0 4px #1e40af;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .dpad-btn:hover {
+            background-color: #2563eb;
+        }
+
+        .dpad-btn:active {
+            background-color: #1e40af;
+            transform: translateY(2px);
+            box-shadow: 0 2px #1e40af;
+        }
+        
+        .empty-space {
+            width: 60px;
+            height: 60px;
+        }
+
+        /* Responsif untuk layar kecil (Mobile) */
+        @media (max-width: 640px) {
+            .cell {
+                width: 20px;
+                height: 20px;
+            }
+            .game-container {
+                padding: 15px;
+            }
+            h1 {
+                font-size: 1.25rem;
+            }
+            .dpad-btn {
+                width: 50px;
+                height: 50px;
+                font-size: 1.2rem;
+            }
+            .empty-space {
+                width: 50px;
+                height: 50px;
+            }
+        }
+    </style>
+</head>
+<body>
+
+<div class="game-container">
+    <h1>Game Labirin Sederhana</h1>
+    <div id="message-box">Tekan "Mulai Labirin Baru" atau gunakan tombol panah untuk bergerak!</div>
+    
+    <div id="maze-grid">
+        <!-- Labirin akan dibuat di sini -->
+    </div>
+
+    <div class="button-group">
+        <button class="action-button" onclick="resetGame()">Mulai Labirin Baru</button>
+    </div>
+
+    <!-- Kontrol Sentuh untuk Perangkat Seluler -->
+    <div class="mobile-controls">
+        <div class="dpad-row">
+            <div class="empty-space"></div>
+            <button class="dpad-btn" id="up-btn">▲</button>
+            <div class="empty-space"></div>
+        </div>
+        <div class="dpad-row">
+            <button class="dpad-btn" id="left-btn">◀</button>
+            <div class="empty-space"></div>
+            <button class="dpad-btn" id="right-btn">►</button>
+        </div>
+        <div class="dpad-row">
+            <div class="empty-space"></div>
+            <button class="dpad-btn" id="down-btn">▼</button>
+            <div class="empty-space"></div>
+        </div>
+    </div>
+</div>
+
+<script>
+    // Konfigurasi Game
+    const MAZE_SIZE = 15; // Ukuran labirin (MAZE_SIZE x MAZE_SIZE)
+    const WALL = 0;
+    const PATH = 1;
+    const START_POS = 2;
+    const END_POS = 3;
+
+    let maze = [];
+    let playerPos = { row: 0, col: 0 };
+    let isGameOver = true;
+    let messageBox = document.getElementById('message-box');
+    const mazeGrid = document.getElementById('maze-grid');
+
+    // --- Algoritma Pembuatan Labirin (DFS Rekursif) ---
+
+    // Mengisi grid dengan dinding
+    function initializeMaze() {
+        maze = Array.from({ length: MAZE_SIZE }, () => 
+            Array(MAZE_SIZE).fill(WALL)
+        );
+    }
+
+    // Pembuat Labirin menggunakan Depth-First Search
+    function generateMaze(r, c) {
+        // Tandai sel saat ini sebagai jalur
+        maze[r][c] = PATH;
+
+        // Ambil urutan acak dari 4 arah
+        const directions = [
+            { dr: -2, dc: 0 }, // Atas
+            { dr: 2, dc: 0 },  // Bawah
+            { dr: 0, dc: -2 }, // Kiri
+            { dr: 0, dc: 2 }   // Kanan
+        ].sort(() => Math.random() - 0.5); // Acak urutan
+
+        for (const dir of directions) {
+            const nr = r + dir.dr;
+            const nc = c + dir.dc;
+
+            // Pastikan posisi baru berada di dalam batas
+            if (nr >= 0 && nr < MAZE_SIZE && nc >= 0 && nc < MAZE_SIZE) {
+                // Jika sel yang berjarak 2 masih dinding
+                if (maze[nr][nc] === WALL) {
+                    // Hancurkan dinding di antara sel saat ini dan sel baru
+                    maze[r + dir.dr / 2][c + dir.dc / 2] = PATH;
+                    // Lanjutkan secara rekursif
+                    generateMaze(nr, nc);
+                }
+            }
+        }
+    }
+
+    // --- Fungsi Game Utama ---
+
+    function createMaze() {
+        // 1. Inisialisasi dan Generasi
+        initializeMaze();
+        // Mulai generasi dari titik (1, 1) - hanya menggunakan koordinat ganjil
+        generateMaze(1, 1); 
+
+        // 2. Tetapkan Titik Awal (Start) dan Akhir (End)
+        
+        // Atur posisi awal selalu di sudut kiri atas (1, 1)
+        playerPos = { row: 1, col: 1 };
+        maze[playerPos.row][playerPos.col] = START_POS;
+        
+        // Atur posisi akhir selalu di sudut kanan bawah (MAZE_SIZE - 2, MAZE_SIZE - 2)
+        maze[MAZE_SIZE - 2][MAZE_SIZE - 2] = END_POS;
+        
+        isGameOver = false;
+    }
+
+    // Membuat grid visual di HTML
+    function drawMaze() {
+        mazeGrid.innerHTML = '';
+        mazeGrid.style.gridTemplateColumns = `repeat(${MAZE_SIZE}, 1fr)`;
+
+        for (let r = 0; r < MAZE_SIZE; r++) {
+            for (let c = 0; c < MAZE_SIZE; c++) {
+                const cell = document.createElement('div');
+                cell.id = `cell-${r}-${c}`;
+                cell.classList.add('cell', 'rounded-sm');
+
+                if (maze[r][c] === WALL) {
+                    cell.classList.add('wall');
+                } else if (maze[r][c] === START_POS) {
+                    cell.classList.add('start');
+                    const playerDiv = document.createElement('div');
+                    playerDiv.id = 'player';
+                    playerDiv.classList.add('player');
+                    cell.appendChild(playerDiv);
+                } else if (maze[r][c] === END_POS) {
+                    cell.classList.add('end');
+                    cell.innerHTML = '🏁'; // Bendera Finish
+                }
+                
+                mazeGrid.appendChild(cell);
+            }
+        }
+        updateMessage("Gunakan tombol panah untuk bergerak.");
+    }
+
+    // Memperbarui posisi pemain di tampilan
+    function updatePlayerDisplay(newRow, newCol) {
+        const oldCell = document.getElementById(`cell-${playerPos.row}-${playerPos.col}`);
+        const newCell = document.getElementById(`cell-${newRow}-${newCol}`);
+        const playerDiv = document.getElementById('player');
+
+        // Pindahkan elemen pemain dari sel lama ke sel baru
+        oldCell.innerHTML = ''; // Hapus pemain dari sel lama
+        
+        // Hanya tambahkan pemain jika sel baru bukan dinding atau akhir
+        if (maze[newRow][newCol] !== WALL && maze[newRow][newCol] !== END_POS) {
+            newCell.appendChild(playerDiv);
+        } else if (maze[newRow][newCol] === END_POS) {
+             // Jika sampai di akhir, pemain tetap di sel sebelumnya, tetapi game berakhir
+             // Logika kemenangan ditangani di checkWin
+        }
+        
+        // Perbarui posisi internal pemain
+        playerPos = { row: newRow, col: newCol };
+    }
+
+    // Cek apakah pemain sudah mencapai titik akhir
+    function checkWin() {
+        // Titik akhir selalu MAZE_SIZE - 2
+        const endRow = MAZE_SIZE - 2;
+        const endCol = MAZE_SIZE - 2;
+
+        if (playerPos.row === endRow && playerPos.col === endCol) {
+            isGameOver = true;
+            updateMessage("Selamat! Anda telah memecahkan labirin! 🎉");
+
+            // Animasi kemenangan sederhana
+            const endCell = document.getElementById(`cell-${endRow}-${endCol}`);
+            endCell.style.backgroundColor = '#f59e0b'; // Warna kemenangan
+        }
+    }
+
+    // Fungsi untuk menggerakkan pemain
+    function movePlayer(dr, dc) {
+        if (isGameOver) {
+            updateMessage("Game selesai! Klik 'Mulai Labirin Baru' untuk bermain lagi.");
+            return;
+        }
+
+        const newRow = playerPos.row + dr;
+        const newCol = playerPos.col + dc;
+
+        // Cek batas dan dinding
+        if (newRow >= 0 && newRow < MAZE_SIZE && 
+            newCol >= 0 && newCol < MAZE_SIZE &&
+            maze[newRow][newCol] !== WALL) 
+        {
+            updatePlayerDisplay(newRow, newCol);
+            checkWin();
+        } else {
+             // Opsional: berikan umpan balik jika menabrak dinding
+             updateMessage("Dinding! Cari jalan lain.");
+        }
+    }
+
+    // Handler event keyboard
+    document.addEventListener('keydown', (e) => {
+        let dr = 0, dc = 0;
+        
+        switch (e.key) {
+            case 'ArrowUp':
+            case 'w':
+                dr = -1;
+                break;
+            case 'ArrowDown':
+            case 's':
+                dr = 1;
+                break;
+            case 'ArrowLeft':
+            case 'a':
+                dc = -1;
+                break;
+            case 'ArrowRight':
+            case 'd':
+                dc = 1;
+                break;
+            default:
+                return; // Abaikan tombol lain
+        }
+        e.preventDefault(); // Mencegah scrolling
+        movePlayer(dr, dc);
+    });
+    
+    // Handler event untuk kontrol sentuh (mobile)
+    document.getElementById('up-btn').addEventListener('click', () => movePlayer(-1, 0));
+    document.getElementById('down-btn').addEventListener('click', () => movePlayer(1, 0));
+    document.getElementById('left-btn').addEventListener('click', () => movePlayer(0, -1));
+    document.getElementById('right-btn').addEventListener('click', () => movePlayer(0, 1));
+
+
+    // Memperbarui pesan status
+    function updateMessage(msg, color = '#d1d5db') {
+        messageBox.textContent = msg;
+        messageBox.style.color = color;
+    }
+
+    // Reset dan mulai game baru
+    function resetGame() {
+        createMaze();
+        drawMaze();
+        isGameOver = false;
+    }
+
+    // Inisialisasi saat memuat halaman
+    window.onload = resetGame;
+
+</script>
+</body>
+</html>
+
